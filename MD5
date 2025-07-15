@@ -1,0 +1,14 @@
+7eef6aef8394d76018d0ce9d58a926fd *DESCRIPTION
+d2bcf64b2ffdd3723d8f2b82c2c23282 *NAMESPACE
+131cffc2257adb99cd966a97487182ee *R/launch_app.R
+945c99515dd1070db55492cdb8802b2d *inst/app/app.R
+932a22eecf78ed91190a5d21e3042c1e *inst/app/www/logo.png
+5d9ed56b8ff16a3db74225608e8334b4 *inst/extdata/One-way_ANOVA.csv
+b6d538b8b490f14060e3ca0eb8e4f43a *inst/extdata/bacteria_for_correlation.csv
+656b5855e240b74e8a0b3883429ebfd4 *inst/extdata/chi_fisher.csv
+ba6207b3bbd0bc319952948fef3fbe51 *inst/extdata/correlation.csv
+9ac5ce066948c697f1630e6ea6af7c05 *inst/extdata/infants.csv
+02f2af87f5f751737e68bb2ccb2557ba *inst/extdata/starwar.csv
+3e9dd751ef6a1dfbe0fc23ce474748b3 *inst/extdata/t-test.csv
+62e7dbbd8d83b33bbfad1e867ade5572 *inst/extdata/t-test_1.csv
+74215ce497cdd39869eb8376ebb0e7f1 *man/launch_app.Rd
