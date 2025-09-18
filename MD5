@@ -1,8 +1,9 @@
-e42f8c11a6c97941049cdd6315e7ae34 *DESCRIPTION
+b0620c2f422664f114c0740e69322ad3 *DESCRIPTION
 d2bcf64b2ffdd3723d8f2b82c2c23282 *NAMESPACE
-3ff9b0bcf933a199a53d320d30a61602 *NEWS.md
-131cffc2257adb99cd966a97487182ee *R/launch_app.R
-cb0220c8f6d9247b4b25176b3ebbc2e2 *inst/app/app.R
+939db443c954928740a2134059ebd6ee *NEWS.md
+20d81a93c7293762c5838d5c4b16d57d *R/launch_app.R
+8cae72e1acb94f460890c381aa9a1dab *R/zzz.R
+afd2107c0d0154a32b68158742938d1b *inst/app/app.R
 932a22eecf78ed91190a5d21e3042c1e *inst/app/www/logo.png
 5d9ed56b8ff16a3db74225608e8334b4 *inst/extdata/One-way_ANOVA.csv
 b6d538b8b490f14060e3ca0eb8e4f43a *inst/extdata/bacteria_for_correlation.csv

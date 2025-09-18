@@ -1,3 +1,18 @@
+# AssumpSure 1.1.1
+
+## Bug fixes
+- Fixed detection of numeric-coded categorical variables (e.g., groups coded as 1, 2, 3). 
+- Fixed incorrect detection of numeric-coded categorical variables in Poisson, negative binomial, and zero-inflated negative binomial models.
+- Improved handling of categorical variables to accept up to 10 levels. 
+- Corrected error notifications to more clearly distinguish between numeric value columns and categorical group columns.
+- Corrected the interpretation of the Shapiro–Wilk test to make it clearer.
+
+## New features and user guidance
+- Added a clear message explaining that the "categorical" are limited to 10 levels to ensure ANOVA and Kruskal–Wallis results remain reliable and interpretable.
+- Added a clear message explaining that the "categorical" are limited to 15 unique levels to improve validity and interpretability of Fisher’s exact and Chi-square tests.
+- Added asterisks to the boxplots and a tooltip explaining their interpretation.
+
+
 # AssumpSure 1.1.0
 
 ## Bug fixes

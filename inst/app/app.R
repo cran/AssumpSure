@@ -424,19 +424,14 @@ function corScreenshotWithoutScatterBtn() {
 
   tabPanel("Fisher & Chi-square",
            fluidPage(
+             useShinyjs(),
              sidebarLayout(
                sidebarPanel(
                  fileInput("file_fisher", "Upload CSV File", accept = ".csv"),
                  uiOutput("fisher_timepoint_ui"),
-                 selectInput("cat1", "Select first categorical variable:",
-                             choices = c("Select variable" = ""), selected = ""),
-                 selectInput("cat2", "Select second categorical variable:",
-                             choices = c("Select variable" = ""), selected = ""),
-                 selectInput("test_type_fisher", "Choose test:",
-                             choices = c("Choose Test" = "",
-                                         "Chi-square test" = "chisq",
-                                         "Fisher’s exact test" = "fisher"),
-                             selected = ""),
+                 uiOutput("cat1_ui"),
+                 uiOutput("cat2_ui"),
+                 uiOutput("test_type_fisher_ui"),
                  actionButton("run_fisher", "Run Test", class = "btn-success"),
                  actionButton("plot_fisher", "Plot", class = "btn-primary")
                ),
@@ -1057,15 +1052,28 @@ server <- function(input, output, session) {
       
       # Convert character columns to factor if they have <=50 unique values,
       # otherwise leave as character. Numeric columns left as is.
+      # df[] <- lapply(df, function(col) {
+      #   if (is.character(col) && length(unique(col)) <= 50) {
+      #     return(factor(col))
+      #   } else if (is.logical(col)) {
+      #     return(factor(col))
+      #   } else {
+      #     return(col)
+      #   }
+      # })
+      
       df[] <- lapply(df, function(col) {
         if (is.character(col) && length(unique(col)) <= 50) {
-          return(factor(col))
+          factor(col)
         } else if (is.logical(col)) {
-          return(factor(col))
+          factor(col)
+        } else if (is.numeric(col) && all(col == floor(col), na.rm = TRUE) && length(unique(col)) <= 10) {
+          as.character(col)   # numeric-coded categorical → character
         } else {
-          return(col)
+          col
         }
       })
+      
       
       # Warn if dataset is too small
       if (nrow(df) < 10) {
@@ -1126,7 +1134,7 @@ server <- function(input, output, session) {
     
     # Categorical: factor or character with few unique values
     cat_vars <- names(df)[sapply(df, function(col) {
-      is.factor(col) || (is.character(col) && length(unique(col)) <= 25)
+      is.factor(col) || (is.character(col) && length(unique(col)) <= 10)
     })]
     
     tagList(
@@ -1147,7 +1155,7 @@ server <- function(input, output, session) {
                     icon("info-circle", class = "fa-solid"),
                     `data-bs-toggle` = "tooltip",
                     `data-bs-placement` = "right",
-                    title = "Note: Categorical variables are limited to 25 levels to ensure ANOVA and Kruskal–Wallis results remain reliable and interpretable, with adequate samples per group."
+                    title = "Note: Categorical variables are limited to 10 levels to ensure ANOVA and Kruskal–Wallis results remain reliable and interpretable, with adequate samples per group."
                   )),
                   choices = c("Choose" = "", cat_vars))
     )
@@ -1336,7 +1344,9 @@ server <- function(input, output, session) {
     # Check column types BEFORE further processing
     value_is_numeric <- is.numeric(type.convert(df0[[input$value_col]], as.is = TRUE))
     group_is_factor  <- is.factor(as.factor(df0[[input$group_col]]))
-    group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
+    #group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
+    group_is_numeric <- is.numeric(df0[[input$group_col]])
+    
 
     if (!value_is_numeric) {
       showNotification(strong("The selected value column is not numeric. Please select a numeric column."), 
@@ -1545,7 +1555,7 @@ assumption_ui_independent <- function() {
                          "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"),
           strong(
             if (shap_failed)
-              "Data deviates from normal distribution"
+              "One or more groups deviate significantly from normality."
             else
               "Data appears to be normally distributed"
           )
@@ -1605,7 +1615,7 @@ assumption_ui_dependent <- function() {
                          "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"),
           strong(
             if (shap_p <= 0.05)
-              "Differences are not normally distributed"
+              "Differences are not normally distributed."
             else
               "Differences appear to be normally distributed"
           )
@@ -1669,7 +1679,7 @@ assumption_ui_anova <- function() {
                          "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"),
           strong(
             if (lev_p <= 0.05)
-              "Variances are significantly different (Heterogeneous)"
+              "Variances are significantly different (Heterogeneous)."
             else
               "Variances are equal (Homogeneous)"
           )
@@ -1686,7 +1696,7 @@ assumption_ui_anova <- function() {
                          "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"),
           strong(
             if (shap_failed)
-              "Data deviates from normal distribution"
+              "One or more groups deviate significantly from normality."
             else
               "Data appears to be normally distributed"
           )
@@ -2591,7 +2601,9 @@ run_wilcoxon_signed_test <- function(df) {
         df0 <- dplyr::filter(df0, timepoint == input$timepoint)
       }
       value_is_numeric <- is.numeric(type.convert(df0[[input$value_col]], as.is = TRUE))
-      group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
+      #group_is_numeric <- is.numeric(type.convert(df0[[input$group_col]], as.is = TRUE))
+      group_is_numeric <- is.numeric(df0[[input$group_col]])
+      
       if (!value_is_numeric) {
         showNotification(strong("The selected value column is not numeric. Please select a numeric column."), 
                          type = "error")
@@ -3030,7 +3042,16 @@ run_wilcoxon_signed_test <- function(df) {
       },
       posthoc_ui,                       # Post hoc button or warning message
       uiOutput("posthoc_result_ui"),    # Then post hoc results
-      actionButton("plot_boxplot_welch_anova", "Plot Boxplot", class = "btn-plot", style = "margin-top: 12px;"),
+      
+      tagList(actionButton("plot_boxplot_welch_anova", "Plot Boxplot", class = "btn-plot", style = "margin-top: 12px;")),
+              # Tooltip icon placed next to the button
+              tags$span(
+                icon("info-circle", class = "fa-solid"),
+                `data-bs-toggle` = "tooltip",
+                `data-bs-placement` = "right",
+                title = "****: p < 0.0001\n***: p < 0.001\n**: p < 0.01\n*: p < 0.05\nns: Not significant",
+                style = "color: #010001; cursor: pointer; margin-left: 6px; position: relative; top: 7px;"
+              ),
       plotOutput("boxplot_welch_anova", height = "350px"),
       downloadButton("download_boxplot_welch_anova", "Download Boxplot", class = "no-print", style = "margin-top: 10px;")
     )
@@ -3253,6 +3274,14 @@ output$welch_boxplot_ui <- renderUI({
   req(welch_clicked())
   tagList(
     actionButton("plot_boxplot_welch", "Plot Boxplot", class = "btn-plot", style = "margin-top: 10px;"),
+    # Tooltip icon placed next to the button
+    tags$span(
+      icon("info-circle", class = "fa-solid"),
+      `data-bs-toggle` = "tooltip",
+      `data-bs-placement` = "right",
+      title = "****: p < 0.0001\n***: p < 0.001\n**: p < 0.01\n*: p < 0.05\nns: Not significant",
+      style = "color: #010001; cursor: pointer; margin-left: 6px; position: relative; top: 5px;"
+    ),
     plotOutput("boxplot_welch", height = "350px"),
     downloadButton("download_boxplot_welch", "Download Boxplot", class = "no-print", style = "margin-top: 10px;")
   )
@@ -3282,7 +3311,21 @@ output$boxplot_ui <- renderUI({
   if (test == "kruskal" && nlevels(df$group) < 3) return(NULL)
   
   tagList(
-    actionButton("plot_boxplot", "Plot Boxplot", class = "btn-plot"),
+    # Action button
+    actionButton(
+      "plot_boxplot",
+      "Plot Boxplot",
+      class = "btn-plot"
+    ),
+    
+    # Tooltip icon placed next to the button
+    tags$span(
+      icon("info-circle", class = "fa-solid"),
+      `data-bs-toggle` = "tooltip",
+      `data-bs-placement` = "right",
+      title = "****: p < 0.0001\n***: p < 0.001\n**: p < 0.01\n*: p < 0.05\nns: Not significant",
+      style = "color: #010001; cursor: pointer; margin-left: 6px;"
+    ),
     plotOutput("boxplot"),
     downloadButton("download_boxplot", "Download Boxplot", class = "no-print")
   )
@@ -3299,8 +3342,9 @@ output$boxplot_ui <- renderUI({
     levs <- levels(df$group)
     # Only allow exactly 2 groups for this test
     if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
+    
     # Explicitly set the comparison
-    #comparison <- list(c(levs[1], levs[2]))
+    comparison <- list(c(levs[1], levs[2]))
     
     ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
@@ -3318,9 +3362,10 @@ output$boxplot_ui <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+
-      #ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = FALSE, 
-      #                           label = "p.signif", size = 5.5, vjust = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) +
+      ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = FALSE, 
+                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
+    
   }
 
 
@@ -3332,8 +3377,9 @@ output$boxplot_ui <- renderUI({
     levs <- levels(df$group)
     # Only allow exactly 2 groups for this test
     if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
+   
     # Explicitly set the comparison
-    #comparison <- list(c(levs[1], levs[2]))
+    comparison <- list(c(levs[1], levs[2]))
     
     
     ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
@@ -3352,9 +3398,9 @@ output$boxplot_ui <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+ 
-      #ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = TRUE, 
-      #                           label = "p.signif", size = 5.5, vjust = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
+      ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = TRUE, 
+                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
   }
 
   # --- Boxplot (Mann-Whitney) ---
@@ -3363,10 +3409,12 @@ output$boxplot_ui <- renderUI({
     # Always coerce to factor and drop unused levels
     df$group <- factor(df$group)
     levs <- levels(df$group)
+    
     # Only allow exactly 2 groups for this test
     if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
+    
     # Explicitly set the comparison
-    #comparison <- list(c(levs[1], levs[2]))
+    comparison <- list(c(levs[1], levs[2]))
     
     ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
@@ -3384,9 +3432,9 @@ output$boxplot_ui <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+
-      #ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = FALSE, 
-      #                           label = "p.signif", size = 5.5, vjust = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) +
+      ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = FALSE, 
+                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
   }
 
 # --- Boxplot (Wilcoxon signed-rank test) ---
@@ -3397,8 +3445,9 @@ output$boxplot_ui <- renderUI({
     levs <- levels(df$group)
     # Only allow exactly 2 groups for this test
     if(length(levs) != 2) return(ggplot2::ggplot() + labs(title = "Requires exactly 2 groups"))
+    
     # Explicitly set the comparison
-    #comparison <- list(c(levs[1], levs[2]))
+    comparison <- list(c(levs[1], levs[2]))
     
     ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
@@ -3416,9 +3465,9 @@ output$boxplot_ui <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+ 
-      #ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = TRUE, 
-      #                           label = "p.signif", size = 5.5, vjust = 0.5)
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
+      ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = TRUE, 
+                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
   }
 
 # --- Boxplot (Anova) ---
@@ -3429,6 +3478,14 @@ output$boxplot_ui <- renderUI({
     levs <- levels(df$group)
     # Create all pairwise comparisons
     #comparisons <- combn(levs, 2, simplify = FALSE)
+    
+    # Perform one-way ANOVA
+    anova_res <- rstatix::anova_test(data = df, value ~ group)
+    
+    # Tukey's HSD post-hoc test
+    tukey_res <- rstatix::tukey_hsd(df, value ~ group) %>%
+      rstatix::add_xy_position(x = "group", step.increase = 0.1)  # avoids bracket overlap
+    
     
     comparison <- combn(unique(df$group), 2, simplify = FALSE)
     p <- ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
@@ -3445,7 +3502,13 @@ output$boxplot_ui <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+ 
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
+      ggpubr::stat_pvalue_manual(
+        tukey_res,
+        label = "p.adj.signif",   # show stars instead of p-values
+        size = 4,             # bigger stars
+        tip.length = 0.01
+      )
       #ggpubr::stat_compare_means(comparisons = comparisons, method = "wilcox.test", paired = FALSE, 
       #                           label = "p.signif", size = 5.5, vjust = 0.5, 
       #                           p.adjust.method = "BH")
@@ -3465,7 +3528,14 @@ output$boxplot_ui <- renderUI({
     # Create all pairwise comparisons
    # comparisons <- combn(levs, 2, simplify = FALSE)
     
-    comparison <- combn(unique(df$group), 2, simplify = FALSE)
+    # Perform Kruskal-Wallis test
+    kruskal_res <- rstatix::kruskal_test(df, value ~ group)
+    
+    # Dunn's post-hoc test with p-value adjustment + bracket positions
+    dunn_res <- rstatix::dunn_test(df, value ~ group, p.adjust.method = "BH") %>%
+      rstatix::add_xy_position(x = "group", step.increase = 0.1)
+    
+    #comparison <- combn(unique(df$group), 2, simplify = FALSE)
     p <- ggplot2::ggplot(df, aes(x = group, y = value, fill = group)) +
       geom_boxplot(alpha = 0.7, width = 0.3, outlier.colour = NA) +
       geom_jitter(width = 0.1, alpha = 0.5, shape = 21, size = 1.3) +
@@ -3480,10 +3550,18 @@ output$boxplot_ui <- renderUI({
             legend.title = element_text(face = "bold", size = 14),
             legend.text = element_text(size = 12)) +
       theme(legend.position = "none") +
-      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) #+ 
+      geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
+      ggpubr::stat_pvalue_manual(
+        dunn_res,
+        label = "p.adj.signif",
+        tip.length = 0.01,
+        hide.ns = FALSE,
+        size = 4
+      )
       #ggpubr::stat_compare_means(comparisons = comparisons, method = "wilcox.test", paired = FALSE, 
       #                           label = "p.signif", size = 5.5, vjust = 0.5, 
       #                           p.adjust.method = "BH")
+    
     # Only apply Set2 if ≤ 8 groups
     if(length(levs) <= 8) {
       p <- p + scale_fill_brewer(palette = "Set2") + scale_color_brewer(palette = "Set2")
@@ -3605,10 +3683,12 @@ output$boxplot_ui <- renderUI({
     for (nm in names(df)) {
       if (nm != "timepoint") {
         col <- df[[nm]]
-        if (is.character(col) && length(unique(col)) <= 50) {
+        if (is.character(col) && length(unique(col)) <= 15) {
           df[[nm]] <- factor(col)
         } else if (is.logical(col)) {
           df[[nm]] <- factor(col)
+        } else if (is.numeric(col) && all(col == floor(col), na.rm = TRUE) && length(unique(col)) <= 15) {
+          df[[nm]] <- as.character(col)   # numeric-coded categorical → character
         }
       }
     }
@@ -3625,10 +3705,20 @@ output$boxplot_ui <- renderUI({
   # UI for selecting first categorical variable
   output$cat1_ui <- renderUI({
     df <- fisher_data()
+    if (is.null(df)) return(NULL) ## only show after upload
+    
     cat_vars <- names(df)[sapply(df, function(col)
       is.character(col) || is.factor(col) || is.logical(col))]
     
-    selectInput("cat1", "Select first categorical variable:",
+    selectInput("cat1", 
+                tagList(
+                  "Select second categorical variable:",
+                  tags$span(
+                    icon("info-circle", class = "fa-solid"),
+                    `data-bs-toggle` = "tooltip",
+                    `data-bs-placement` = "right",
+                    title = "Note: Categorical variables are limited to 15 unique levels to improve validity and interpretability of Fisher’s exact and Chi-square tests, as larger tables often violate expected-count assumptions and yield less reliable results."
+                  )),
                 choices = c("Select variable" = "", cat_vars),
                 selected = "")
   })
@@ -3636,13 +3726,30 @@ output$boxplot_ui <- renderUI({
   # UI for selecting second categorical variable, excluding the first
   output$cat2_ui <- renderUI({
     df <- fisher_data()
+    if (is.null(df)) return(NULL) ## only show after upload
+    
     cat_vars <- names(df)[sapply(df, function(col)
       is.character(col) || is.factor(col) || is.logical(col))]
     
-    selectInput("cat2", "Select second categorical variable:",
+    selectInput("cat2", 
+                tagList(
+                "Select second categorical variable:",
+                tags$span(
+                  icon("info-circle", class = "fa-solid"),
+                  `data-bs-toggle` = "tooltip",
+                  `data-bs-placement` = "right",
+                  title = "Note: Categorical variables are limited to 15 unique levels to improve validity and interpretability of Fisher’s exact and Chi-square tests, as larger tables often violate expected-count assumptions and yield less reliable results."
+                )),
                 choices = c("Select variable" = "", cat_vars),
                 selected = "")
   })
+  
+  
+  ## ---- Fisher: re-init tooltips after renderUI ----
+  session$onFlushed(function() {
+    session$sendCustomMessage("reinit-tooltips", list())
+  }, once = FALSE)
+  
   
 
   output$fisher_timepoint_ui <- renderUI({
@@ -3655,6 +3762,15 @@ output$boxplot_ui <- renderUI({
       )
     }
   })
+  
+  # Dynamic UI for test type
+  output$test_type_fisher_ui <- renderUI({
+    selectInput("test_type_fisher", "Choose test:",
+                choices = c("Choose Test" = "",
+                            "Chi-square test" = "chisq",
+                            "Fisher’s exact test" = "fisher"),
+                selected = "")
+  })
 
   # Update the categorical variable selectors when data is uploaded or timepoint selected
   observe({
@@ -3665,10 +3781,12 @@ output$boxplot_ui <- renderUI({
     is_categorical <- function(x) is.factor(x) || is.character(x)
     cat_vars <- names(df)[sapply(df, is_categorical)]
     cat_vars <- setdiff(cat_vars, c("timepoint", "sample_id"))
-    updateSelectInput(session, "cat1", choices = c("Select variable" = "", cat_vars),
-                      label = "Select first categorical variable:", selected = "")
-    updateSelectInput(session, "cat2", choices = c("Select variable" = "", cat_vars),
-                      label = "Select second categorical variable:", selected = "")
+    updateSelectInput(session, "cat1", 
+                      choices = c("Select variable" = "", cat_vars), 
+                      selected = "")
+    updateSelectInput(session, "cat2", 
+                      choices = c("Select variable" = "", cat_vars),
+                      selected = "")
   })
 
 
@@ -4764,7 +4882,7 @@ output$boxplot_ui <- renderUI({
     class='fa-solid fa-circle-info'
     data-bs-toggle='tooltip'
     data-bs-placement='right'
-    title='This scatterplot shows the relationship between the two selected variables. The red line represents a linear regression fit. If the points closely follow the line, the linearity assumption is reasonable; large deviations suggest the assumption may not hold.'
+    title='This scatterplot shows the relationship between the two selected variables. The orange line represents a linear regression fit. If the points closely follow the line, the linearity assumption is reasonable; large deviations suggest the assumption may not hold.'
     style='color:#2c3e50; cursor:pointer; font-size:16px; margin-left:10px;'></i>"))
         ),
         fluidRow(
@@ -7357,7 +7475,9 @@ lmm_vars <- reactive({
 
       log_data <- reactive({
         req(input$log_file)
-        readr::read_csv(input$log_file$datapath, show_col_types = F) %>%
+        
+        ## assign to df first
+        df <- readr::read_csv(input$log_file$datapath, show_col_types = FALSE) %>%
           dplyr::select(
             -dplyr::contains("infant_id", ignore.case = TRUE),
             -dplyr::contains("infantid", ignore.case = TRUE),
@@ -7367,6 +7487,23 @@ lmm_vars <- reactive({
             -dplyr::contains("accession", ignore.case = TRUE),
             -dplyr::contains("name", ignore.case = TRUE)
           )
+        
+        ## now safely transform df
+        df[] <- lapply(df, function(col) {
+          if (is.character(col)) {
+            factor(col)                          
+          } else if (is.logical(col)) {
+            factor(col)                          
+          } else if (is.numeric(col) &&
+                     all(col == floor(col), na.rm = TRUE) &&
+                     length(unique(col)) <= 15) {
+            factor(as.character(col))            
+          } else {
+            col
+          }
+        })
+        
+        df
       })
 
 
@@ -7444,6 +7581,8 @@ lmm_vars <- reactive({
 
         output$log_result <- renderUI({
           df <- log_model_data()
+          validate(need(!is.null(df), ""))
+          
           main_effects <- input$log_indep
           interaction_terms <- NULL
           if (!is.null(input$log_interact) && length(input$log_interact) > 0) {
@@ -7453,7 +7592,12 @@ lmm_vars <- reactive({
           fml <- as.formula(paste(input$log_dep, "~", paste(rhs, collapse = " + ")))
           
           # --- Fit the penalized logistic regression model ---
-          mod <- glm(fml, data = df, family = binomial(), method = "brglmFit")
+          res <- tryCatch({                  ## added tryCatch
+            mod <- glm(fml, data = df, family = binomial(), method = "brglmFit")
+            broom::tidy(mod, conf.int = TRUE)
+          }, error = function(e) NULL)
+          
+          validate(need(!is.null(res), ""))
           
           # --- Extract tidy summary and check for problematic variables ---
           b <- broom::tidy(mod, conf.int = TRUE)
@@ -7523,8 +7667,8 @@ lmm_vars <- reactive({
         # Check exactly two unique non-NA values
         if (length(dep_levels) != 2) {
           showNotification(strong(
-            sprintf("Dependent variable must have exactly 2 levels, found: %s", paste(dep_levels, collapse = ", "))
-          ), type = "error")
+            sprintf("More than 2 levels were detected. Please use multinomial regressios instead")), 
+            type = "error")
           return(NULL)
         }
         
@@ -7820,7 +7964,8 @@ lmm_vars <- reactive({
       output$nb_dep_ui <- renderUI({
         df <- nb_data()
         count_like_vars <- names(df)[sapply(df, function(col) {
-          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE)
+          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE) &&
+            length(unique(col[!is.na(col)])) > 5    ## added: must have >5 unique values
         })]
 
         tagList(
@@ -8234,7 +8379,8 @@ lmm_vars <- reactive({
       # ---- Multinomial Regression: Reactive Data ----
       multi_data <- reactive({
         req(input$multi_file)
-        readr::read_csv(input$multi_file$datapath, show_col_types = F) %>%
+        
+        df <- readr::read_csv(input$multi_file$datapath, show_col_types = FALSE) %>%
           dplyr::select(
             -dplyr::contains("infant_id", ignore.case = TRUE),
             -dplyr::contains("infantid", ignore.case = TRUE),
@@ -8244,6 +8390,23 @@ lmm_vars <- reactive({
             -dplyr::contains("accession", ignore.case = TRUE),
             -dplyr::contains("name", ignore.case = TRUE)
           )
+        
+        ## added: convert character/logical/numeric-coded categoricals to factors
+        df[] <- lapply(df, function(col) {
+          if (is.character(col)) {
+            factor(col)
+          } else if (is.logical(col)) {
+            factor(col)
+          } else if (is.numeric(col) &&
+                     all(col == floor(col), na.rm = TRUE) &&
+                     length(unique(col)) <= 15) {
+            factor(as.character(col))   ## numeric-coded categorical → factor
+          } else {
+            col
+          }
+        })
+        
+        df
       })
 
 
@@ -8316,6 +8479,8 @@ lmm_vars <- reactive({
 
         output$multi_result <- renderUI({
           df <- multi_model_data()
+          validate(need(!is.null(df), ""))
+          
           main_effects <- input$multi_indep
           interaction_terms <- NULL
 
@@ -8325,7 +8490,13 @@ lmm_vars <- reactive({
 
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$multi_dep, "~", paste(rhs, collapse = " + ")))
-          mod <- nnet::multinom(fml, data = df, trace = FALSE)
+          #mod <- nnet::multinom(fml, data = df, trace = FALSE)
+          res <- tryCatch({                                         ## added: guard model fit
+            mod <- nnet::multinom(fml, data = df, trace = FALSE)
+            broom::tidy(mod, conf.int = TRUE)
+          }, error = function(e) NULL)
+          
+          validate(need(!is.null(res), ""))      ## added: suppress error UI
 
         tbl_mul <- broom::tidy(mod, conf.int = TRUE) %>%
             dplyr::mutate(Sig = dplyr::case_when(
@@ -8417,6 +8588,8 @@ lmm_vars <- reactive({
         
         output$multi_assump <- renderPlot({
           df <- multi_model_data()
+          validate(need(!is.null(df), ""))
+          
           main_effects <- input$multi_indep
           interaction_terms <- NULL
           
@@ -8426,8 +8599,12 @@ lmm_vars <- reactive({
           
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$multi_dep, "~", paste(rhs, collapse = " + ")))
-          mod <- nnet::multinom(fml, data = df, trace = FALSE)
-          performance::check_model(mod, residual_type = "normal")
+          ok <- tryCatch({                                         ## added
+            mod <- nnet::multinom(fml, data = df, trace = FALSE)
+            print(performance::check_model(mod, residual_type = "normal"))
+            TRUE
+          }, error = function(e) FALSE)
+          validate(need(ok, ""))
         })
       })
 
@@ -8436,6 +8613,8 @@ lmm_vars <- reactive({
         filename = function() paste0("multinomial_assumption_plot_", Sys.Date(), ".pdf"),
         content = function(file) {
           df <- multi_model_data()
+          if (is.null(df)) return(invisible(NULL))
+          
           main_effects <- input$multi_indep
           interaction_terms <- NULL
 
@@ -8445,7 +8624,10 @@ lmm_vars <- reactive({
 
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$multi_dep, "~", paste(rhs, collapse = " + ")))
-          mod <- nnet::multinom(fml, data = df, trace = FALSE)
+          mod <- tryCatch({                                         ## added
+            nnet::multinom(fml, data = df, trace = FALSE)
+          }, error = function(e) NULL)
+          if (is.null(mod)) return(invisible(NULL))
 
           check_plot <- performance::check_model(mod)
 
@@ -8488,7 +8670,8 @@ lmm_vars <- reactive({
       output$poiss_dep_ui <- renderUI({
         df <- poiss_data()
         count_like_vars <- names(df)[sapply(df, function(col) {
-          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE)
+          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE) &&
+            length(unique(col[!is.na(col)])) > 5    ## added: must have >5 unique values
         })]
         
         tagList(
@@ -8905,7 +9088,8 @@ lmm_vars <- reactive({
       output$zinb_dep_ui <- renderUI({
         df <- zinb_data()
         count_like_vars <- names(df)[sapply(df, function(col) {
-          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE)
+          is.numeric(col) && all(col >= 0, na.rm = TRUE) && all(col == floor(col), na.rm = TRUE) &&
+            length(unique(col[!is.na(col)])) > 5    ## added: must have >5 unique values
         })]
         tagList(
           selectInput("zinb_dep", 
