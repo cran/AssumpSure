@@ -1,3 +1,16 @@
+# AssumpSure 1.1.2
+
+## Bug fixes
+- Corrected the name of the first category in Chi-square and Fisher tests.
+- Corrected error messages for Mann–Whitney U test when fewer than 2 groups or more than 2 groups are detected.
+- Corrected error message for one-way ANOVA when fewer than 3 groups are detected.
+- Added error messages for Kruskal–Wallis test when only 1 or 2 groups are detected.
+
+## New features
+- Added model metrics matrix for LM, LMM, GLM, and zero-inflated models showing key fit statistics (AIC, BIC, logLik, etc.).
+
+
+
 # AssumpSure 1.1.1
 
 ## Bug fixes

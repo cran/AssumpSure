@@ -1374,7 +1374,7 @@ server <- function(input, output, session) {
         return()
       }
       if (ngroups > 2) {
-        showNotification(strong("More than two groups detected. Please use One-way ANOVA. Independent t-test is only for comparing exactly two groups."), type = "error")
+        showNotification(strong("More than two groups detected. Please use One-way ANOVA. Independent t-test is only for comparing exactly two groups."), type = "error", duration = 9)
         return()
       }
       if (any(group_sizes < 2)) {
@@ -1392,11 +1392,11 @@ server <- function(input, output, session) {
         return()
       }
       if (ngroups > 2) {
-        showNotification(strong("More than two groups detected. Please use One-way ANOVA. Paired t-test is only for comparing exactly two groups."), type = "error", duration = 5)
+        showNotification(strong("More than two groups detected. Please use One-way ANOVA. Paired t-test is only for comparing exactly two groups."), type = "error", duration = 9)
         return()
       }
       if (length(unique(group_sizes)) > 1) {
-        showNotification(strong("Paired t-test requires both groups to have equal sample size. If your data are not truly paired, consider using the independent t-test. Otherwise, check your data for missing or unmatched pairs."), type = "error", duration = 6)
+        showNotification(strong("Paired t-test requires both groups to have equal sample size. If your data are not truly paired, consider using the independent t-test. Otherwise, check your data for missing or unmatched pairs."), type = "error", duration = 9)
         return()
       }
       if (any(group_sizes < 3)) {
@@ -1408,10 +1408,28 @@ server <- function(input, output, session) {
     
     
     # ---- ANOVA GROUP CHECK ----
-    if (input$test_type == "anova" && ngroups < 3) {
-      showNotification(strong("Only two groups detected. Please use a t-test (independent or paired, as appropriate). One-way ANOVA is for three or more groups."), type = "error", duration = 8)
-      return()
+    if (input$test_type == "anova") {
+      ngroups <- nlevels(df$group)
+      
+      if (ngroups == 1) {
+        showNotification(
+          strong("Only one group detected. One-way ANOVA requires three or more groups."), 
+          type = "error", 
+          duration = 9
+        )
+        return()
+      }
+      
+      if (ngroups == 2) {
+        showNotification(
+          strong("Only two groups detected. Please use a t-test (independent or paired, as appropriate). One-way ANOVA is for three or more groups."), 
+          type = "error", 
+          duration = 9
+        )
+        return()
+      }
     }
+    
     processed_data(df)
   })
 
@@ -2437,20 +2455,44 @@ output$levene_text <- renderUI({
     }, error = function(e) data.frame(p = NA))
   }
 
-## Mann-Whitney U test
+# # Mann-Whitney U test
+# run_mannwhitney_test <- function(df) {
+#   # ngroups <- nlevels(df$group)
+#   # if (ngroups == 1) {
+#   #   showNotification(
+#   #     strong("Only one group detected. Mann–Whitney U test requires exactly two groups."),
+#   #     type = "error", duration = 9
+#   #   )
+#   #   return(data.frame(p = NA))
+#   # }
+# 
+#   # if (ngroups > 2) {
+#   #   showNotification(
+#   #     strong("More than two groups detected. Check ANOVA assumptions first; if assumptions are violated, AssumpSure will guide you."),
+#   #     type = "error", duration = 9,
+#   #   )
+#   #   return(data.frame(p = NA))
+#   # }
+#   tryCatch({
+#     rstatix::wilcox_test(df, value ~ group, paired = F, detailed = T) %>%
+#       dplyr::mutate(method = "Mann-Whitney")
+#   }, error = function(e) data.frame(p = NA))
+# }
+ 
+   
+
+  ## Mann-Whitney U test
   run_mannwhitney_test <- function(df) {
     ngroups <- nlevels(df$group)
-    if (ngroups != 2) {
-      showNotification(strong("Mann-Whitney U test requires exactly 2 groups. For more than 2 groups, use Kruskal-Wallis."), type = "error")
-      return(data.frame(p = NA))
-    }
+    if (ngroups != 2) return(data.frame(p = NA))
+    
     tryCatch({
-      rstatix::wilcox_test(df, value ~ group, paired = F, detailed = T) %>% 
-        dplyr::mutate(method = "Mann-Whitney")
+      rstatix::wilcox_test(df, value ~ group, paired = FALSE, detailed = TRUE) %>%
+        dplyr::mutate(method = "Mann–Whitney")
     }, error = function(e) data.frame(p = NA))
   }
   
-
+  
 ## Wilcoxon signed-rank test
 run_wilcoxon_signed_test <- function(df) {
   ngroups <- nlevels(df$group)
@@ -2460,7 +2502,8 @@ run_wilcoxon_signed_test <- function(df) {
   if (length(unique(group_sizes)) != 1) return(data.frame(p = NA))
 
   tryCatch({
-    rstatix::wilcox_test(df, value ~ group, paired = TRUE, detailed = TRUE)
+    rstatix::wilcox_test(df, value ~ group, paired = TRUE, detailed = TRUE) %>% 
+      dplyr::mutate(method = "Mann-Whitney")
   }, error = function(e) data.frame(p = NA))
 }
   
@@ -2631,18 +2674,79 @@ run_wilcoxon_signed_test <- function(df) {
     run_test_clicked(Sys.time())
     
     df <- processed_data()
-    
-    # Show this message on every button click, not inside renderUI!
-    if (input$test_type == "wilcoxon_signed") {
+
+    # Show this message for Mann-Whitney on every button click, not inside renderUI!
+    if (input$test_type == "mannwhitney") {
       ngroups <- nlevels(df$group)
-      if (ngroups != 2) {
-        showNotification(strong("Wilcoxon signed-rank test requires exactly 2 groups. For more than 2 groups, use Kruskal–Wallis."), type = "error", duration = 9)
+      
+      if (ngroups == 1) {
+        showNotification(
+          strong("Only one group detected. Mann–Whitney U test requires exactly two groups."), 
+          type = "error", 
+          duration = 9
+        )
         return()
       }
+      
+      if (ngroups > 2) {
+        showNotification(
+          strong("More than two groups detected. Check ANOVA assumptions first; if assumptions are violated, AssumpSure will guide you."), 
+          type = "error", 
+          duration = 9
+        )
+        return()
+      }
+    }
+    
+    # Show this message for Wilcoxon on every button click, not inside renderUI!
+    if (input$test_type == "wilcoxon_signed") {
+      ngroups <- nlevels(df$group)
+      
+      if (ngroups == 1) {
+        showNotification(
+          strong("Only one group detected. Wilcoxon signed-rank test requires exactly two groups."), 
+          type = "error", 
+          duration = 9
+        )
+        return()
+      }
+      
+      if (ngroups > 2) {
+        showNotification(
+          strong("More than two groups detected. Check ANOVA assumptions first; if assumptions are violated, AssumpSure will guide you."), 
+          type = "error", 
+          duration = 9
+        )
+        return()
+      }
+      
       group_sizes <- table(df$group)
       if (length(unique(group_sizes)) != 1) {
-        showNotification(strong("Wilcoxon signed-rank test requires paired samples with equal group sizes. Use Mann–Whitney test for unpaired or unequal groups."), type = "error", duration = 9)
+        showNotification(strong("Wilcoxon signed-rank test requires paired samples with equal group sizes. For unpaired or unequal groups, check independent t-test assumptions first; if they are violated, AssumpSure will guide you."), type = "error", duration = 9)
         return()
+      }
+    }
+    
+    # >>> NEW BLOCK FOR KRUSKAL HERE <<<
+    if (input$test_type == "kruskal") {
+      ngroups <- nlevels(df$group)
+      
+      if (ngroups == 1) {
+        showNotification(
+          strong("Only one group detected. Kruskal–Wallis requires at least three groups."), 
+          type = "error", 
+          duration = 9
+        )
+        return(NULL)
+      }
+      
+      if (ngroups == 2) {
+        showNotification(
+          strong("Only two groups detected. Check t-test assumptions (paired or independent, as appropriate) first; if they are violated, AssumpSure will guide you to the correct test."), 
+          type = "error", 
+          duration = 9
+        )
+        return(NULL)
       }
     }
 
@@ -2652,13 +2756,7 @@ run_wilcoxon_signed_test <- function(df) {
       if (!should_show_test_result()) return(NULL)
       df <- processed_data()
       if (is.null(df)) return(NULL)
-      if (input$test_type == "kruskal") {
-        ngroups <- nlevels(df$group)
-        if (ngroups < 3) {
-          showNotification(strong("Kruskal-Wallis requires at least 3 groups. For two groups, use the Wilcoxon or Mann–Whitney test (as appropriate)."), type = "error", duration = 5)
-          return(NULL)
-        }
-      }
+      
       if (!assumptions_met()) {
         div(
           style = "background-color: #e0e0e0; color: #222; padding: 14px; border-radius: 5px; font-size: 1.1em; margin-top: 10px;",
@@ -3364,7 +3462,7 @@ output$boxplot_ui <- renderUI({
       theme(legend.position = "none") +
       geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) +
       ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = FALSE, 
-                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
+                                 label = "p.signif", label.size = 3.5, vjust = 0.2, tip.length = 0.02)
     
   }
 
@@ -3400,7 +3498,7 @@ output$boxplot_ui <- renderUI({
       theme(legend.position = "none") +
       geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
       ggpubr::stat_compare_means(comparisons = comparison, method = "t.test", paired = TRUE, 
-                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
+                                 label = "p.signif", label.size = 3.5, vjust = 0.2, tip.length = 0.02)
   }
 
   # --- Boxplot (Mann-Whitney) ---
@@ -3434,7 +3532,7 @@ output$boxplot_ui <- renderUI({
       theme(legend.position = "none") +
       geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) +
       ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = FALSE, 
-                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
+                                 label = "p.signif", label.size = 3.5, vjust = 0.2, tip.length = 0.02)
   }
 
 # --- Boxplot (Wilcoxon signed-rank test) ---
@@ -3467,7 +3565,7 @@ output$boxplot_ui <- renderUI({
       theme(legend.position = "none") +
       geom_flat_violin(position = position_nudge(x = 0.2, y = 0), alpha = 0.8, adjust = 0.9, width = 0.5) + 
       ggpubr::stat_compare_means(comparisons = comparison, method = "wilcox.test", paired = TRUE, 
-                                 label = "p.signif", size = 3.5, vjust = 0.2, tip.length = 0.02)
+                                 label = "p.signif", label.size = 3.5, vjust = 0.2, tip.length = 0.02)
   }
 
 # --- Boxplot (Anova) ---
@@ -3712,7 +3810,7 @@ output$boxplot_ui <- renderUI({
     
     selectInput("cat1", 
                 tagList(
-                  "Select second categorical variable:",
+                  "Select first categorical variable:",
                   tags$span(
                     icon("info-circle", class = "fa-solid"),
                     `data-bs-toggle` = "tooltip",
@@ -6164,6 +6262,15 @@ output$cor_matrix_download_ui <- renderUI({
         rhs <- c(main_effects, interaction_terms)
         fml <- as.formula(paste(input$lm_dep, "~", paste(rhs, collapse = " + ")))
         
+        # >>> INSERTED: fit model and compute fit metrics
+        mod <- lm(fml, data = df)
+        smry <- summary(mod)
+        r2   <- unname(smry$r.squared)
+        adjr <- unname(smry$adj.r.squared)
+        aic  <- AIC(mod)
+        bic  <- BIC(mod)
+        rmse <- sqrt(mean(residuals(mod)^2))
+        
         tbl_lm <-lm(fml, data = df) %>%
           broom::tidy(conf.int = T) %>%
           dplyr::mutate(Sig = dplyr::case_when(
@@ -6178,8 +6285,39 @@ output$cor_matrix_download_ui <- renderUI({
             bootstrap_options = c("hover", "condensed", "bordered"),
             position = "center", full_width = T) %>% 
           kableExtra::scroll_box(width = "100%", height = "100%")
-        div(style = "margin-top: 15px;",
-        HTML(tbl_lm)
+        
+        # >>> INSERTED: model-fit square (heading + quick guidance)
+        fit_box <- div(
+          style = "margin-top: 14px; background:#f5f7fb; border:1px solid #d9e1f2; border-radius:8px; padding:12px;",
+          div(
+            style = "display:flex; align-items:center; gap:8px; margin-bottom:8px;",
+            tags$strong("Model fit & what to do"),
+            tags$span(
+              icon("info-circle", class = "fa-solid"),
+              `data-bs-toggle` = "tooltip",
+              `data-bs-placement` = "right",
+              title = "Akaike Information Criterion (AIC)\nBayesian Information Criterion (BIC)\nRoot Mean Square Error (RMSE)\nAdjusted R-squared (Adj. R²)\n\n
+Compare models fitted on the same data:\n
+• Lower AIC, BIC, and RMSE indicate better fit.\n• Higher adjusted R² indicates better explanatory power.\n
+If AIC differs by less than 2, the models fit equally well, so prefer the simpler one.",
+              class = "no-print",
+              style = "color:black; cursor:pointer;"
+            )
+          ),
+          tags$div(
+            style = "display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap:8px; font-size:0.95em;",
+            tags$div(tags$strong("AIC"),  br(), sprintf("%.2f", aic)),
+            tags$div(tags$strong("BIC"),  br(), sprintf("%.2f", bic)),
+            tags$div(tags$strong("R²"),   br(), sprintf("%.3f", r2)),
+            tags$div(tags$strong("Adj. R²"), br(), sprintf("%.3f", adjr)),
+            tags$div(tags$strong("RMSE"), br(), sprintf("%.3f", rmse))
+          )
+        )
+        
+        div(
+          style = "margin-top: 15px;",
+          HTML(tbl_lm),
+          fit_box
         )
       })
     })
@@ -6198,7 +6336,12 @@ output$cor_matrix_download_ui <- renderUI({
               icon("info-circle", class = "fa-solid"),
               `data-bs-toggle` = "tooltip",
               `data-bs-placement` = "right",
-              title = "• If residuals are not normally distributed or variance is not constant (e.g., residuals vs. fitted plot shows a funnel shape), consider transforming the dependent variable (e.g., log, Box-Cox, or Yeo-Johnson).\n• If VIF > 10, remove or combine correlated predictors.\n• Check for influential outliers and consider removing or justifying them.",
+              title = "Posterior Predictive Check:\n→ If predicted and observed values differ greatly, the model may be misspecified. Try adding or removing predictors, or transforming variables (e.g., log or Box-Cox).\n
+Linearity:\n→ If you see curvature, add interaction or transform predictors (e.g., log). Remove predictors that don’t have a linear relationship with the outcome.\n
+Homogeneity of Variance:\n→ If the plot shows a funnel shape, transform the dependent variable (log, Box-Cox, or Yeo–Johnson).\n
+Influential Observations:\n→ If points fall outside the contour lines, check for data errors and fix them. If correct, test the model with and without those points and report any major differences.\n
+Collinearity (VIF plot):\n→ If VIF > 10, remove or combine correlated predictors.\n
+Normality of Residuals:\n→ If points deviate strongly from the line (especially in the tails), transform the outcome variable (log, Box-Cox, or Yeo–Johnson).",
               class = "no-print",
               style = "margin-left:8px; color: black; cursor: pointer;"
             )
@@ -6305,7 +6448,7 @@ output$cor_matrix_download_ui <- renderUI({
         shinyjs::show("download_hist_before")
         req(lm_data(), input$lm_dep)
         df <- lm_data()
-        ggplot2::ggplot(df, aes_string(input$lm_dep)) +
+        ggplot2::ggplot(df, aes(x = .data[[input$lm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
@@ -6346,7 +6489,7 @@ output$cor_matrix_download_ui <- renderUI({
       output$lm_hist_after <- renderPlot({
         req(lm_transformed_data(), input$lm_dep)
         df <- lm_transformed_data()
-        ggplot2::ggplot(df, aes_string(input$lm_dep)) +
+        ggplot2::ggplot(df, aes(x = .data[[input$lm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() +
@@ -6399,7 +6542,7 @@ output$cor_matrix_download_ui <- renderUI({
       content = function(file) {
         df <- lm_data()
         dep_var <- input$lm_dep
-        p <- ggplot2::ggplot(df, aes_string(dep_var)) +
+        p <- ggplot2::ggplot(df, aes(x = .data[[dep_var]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
@@ -6456,7 +6599,7 @@ output$cor_matrix_download_ui <- renderUI({
       content = function(file) {
         req(lm_transformed_data(), input$lm_dep)
         df <- lm_transformed_data()
-        p <- ggplot2::ggplot(df, aes_string(input$lm_dep)) +
+        p <- ggplot2::ggplot(df, aes(x = .data[[input$lm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
@@ -6810,7 +6953,7 @@ lmm_vars <- reactive({
         shinyjs::show("lmm_download_hist_before")
         req(lmm_data(), input$lmm_dep)
         df <- lmm_data()
-        ggplot2::ggplot(df, aes_string(input$lmm_dep)) +
+        ggplot2::ggplot(df, aes(x = .data[[input$lmm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
@@ -6870,7 +7013,7 @@ lmm_vars <- reactive({
       content = function(file) {
         req(lmm_data(), input$lmm_dep)
         df <- lmm_data()
-        p <- ggplot2::ggplot(df, aes_string(input$lmm_dep)) +
+        p <- ggplot2::ggplot(df, aes(x = .data[[input$lmm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
           geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
@@ -7069,7 +7212,13 @@ lmm_vars <- reactive({
                   icon("info-circle", class = "fa-solid"),
                   `data-bs-toggle` = "tooltip",
                   `data-bs-placement` = "right",
-                  title = "• If residuals are not normally distributed or variance is not constant (e.g., residuals vs. fitted plot shows a funnel shape), consider transforming the dependent variable (e.g., log, Box-Cox, or Yeo-Johnson).\n• If VIF > 10, remove or combine correlated predictors.\n• Check for influential outliers and consider removing or justifying them.\n• If random effects are non-normal, consider simplifying or interpreting results with caution.",
+                  title = "Posterior Predictive Check:\n→ If predicted and observed values differ greatly, try adding or removing predictors, or transforming variables (e.g., Box-Cox).\n
+Linearity:\n→ If you see curvature, add interaction or transform predictors (e.g., log). Remove predictors that don’t have a linear relationship with the outcome.\n
+Homogeneity of Variance:\n→ If the plot shows a funnel shape, transform the dependent variable (e.g., Box-Cox).\n
+Influential Observations:\n→ If points fall outside the contour lines, check for data errors and fix them. If correct, test the model with and without those points and report any major differences.\n
+Collinearity (VIF plot):\n→ If VIF > 10, remove or combine correlated predictors.\n
+Normality of Residuals:\n→ If points deviate strongly from the line (especially in the tails), transform the outcome variable (e.g., Box-Cox or Yeo–Johnson).\n
+Normality of Random Effects:\n→ If random effects are non-normal, try a simpler model by removing random effects that don’t add much, or interpret results cautiously.",
                   class = "no-print",
                   style = "margin-left:8px; color: black; cursor: pointer;"
                 )
@@ -7264,8 +7413,59 @@ lmm_vars <- reactive({
           bootstrap_options = c("hover", "condensed", "bordered"),
           position = "center", full_width = T) %>% 
         kableExtra::scroll_box(width = "100%", height = "100%")
-      div(style = "margin-top: 15px;",
-          HTML(tbl_lmm)
+      
+      # --- Fit metrics (LMM) ---
+      sing <- lme4::isSingular(model, tol = 1e-4)
+      aic  <- AIC(model)
+      bic  <- BIC(model)
+      rmse <- sqrt(mean(residuals(model)^2))
+      
+      # Accurate marginal and conditional R² using 'performance'
+      r <- performance::r2(model)
+      r2_marginal    <- unname(r$R2_marginal)
+      r2_conditional <- if (sing) NA_real_ else unname(r$R2_conditional)
+      
+      
+      sing_msg <- if (sing) div(
+        style = "margin-bottom:10px; background:#fff3cd; border:1px solid #ffe8a1; border-radius:6px; padding:10px;",
+        strong("Singular fit: "),
+        "random-effect variance is ~0. Report marginal R² only, and consider simplifying random effects (e.g., remove zero-variance random slopes or unused grouping factors)."
+      ) else NULL
+      
+      
+      # --- Model-fit square (heading + tooltip) ---
+      fit_box <- div(
+        style = "margin-top: 14px; background:#f5f7fb; border:1px solid #d9e1f2; border-radius:8px; padding:12px;",
+        div(
+          style = "display:flex; align-items:center; gap:8px; margin-bottom:8px;",
+          tags$strong("Model fit & what to do"),
+          tags$span(
+            icon("info-circle", class = "fa-solid"),
+            `data-bs-toggle` = "tooltip",
+            `data-bs-placement` = "right",
+            title = "Akaike Information Criterion (AIC)\nBayesian Information Criterion (BIC)\nRoot Mean Square Error (RMSE)\nMarginal R-squared (R²m)\nConditional R-squared (R²c)\n\n
+Compare models fitted on the same data:\n
+• Lower AIC, BIC, and RMSE indicate better fit.\n• Higher R²m/R²c indicate better explanatory power.\n
+If AIC differs by less than 2, the models fit equally well, so prefer the simpler one.",
+            class = "no-print",
+            style = "color:black; cursor:pointer;"
+          )
+        ),
+        sing_msg, 
+        tags$div(
+          style = "display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap:8px; font-size:0.95em;",
+          tags$div(tags$strong("AIC"),  br(), sprintf("%.2f", aic)),
+          tags$div(tags$strong("BIC"),  br(), sprintf("%.2f", bic)),
+          tags$div(tags$strong("R²m"), br(), sprintf("%.3f", r2_marginal)),
+          tags$div(tags$strong("R²c"), br(), sprintf("%.3f", r2_conditional)),
+          tags$div(tags$strong("RMSE"), br(), sprintf("%.3f", rmse))
+        )
+      )
+      
+      div(
+        style = "margin-top: 15px;", 
+        HTML(tbl_lmm),
+        fit_box
       )
     })
     
@@ -7591,7 +7791,7 @@ lmm_vars <- reactive({
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$log_dep, "~", paste(rhs, collapse = " + ")))
           
-          # --- Fit the penalized logistic regression model ---
+          # --- Fit the bias-reduced logistic regression model (brglm) ---
           res <- tryCatch({                  ## added tryCatch
             mod <- glm(fml, data = df, family = binomial(), method = "brglmFit")
             broom::tidy(mod, conf.int = TRUE)
@@ -7599,6 +7799,14 @@ lmm_vars <- reactive({
           
           validate(need(!is.null(res), ""))
           
+          
+          # >>> INSERTED: Fit metrics (Logistic GLM)
+          # AIC/BIC always valid for GLMs; use pseudo-R² for classification models.
+          aic <- AIC(mod)
+          bic <- BIC(mod)
+          ll_full <- as.numeric(logLik(mod))
+
+
           # --- Extract tidy summary and check for problematic variables ---
           b <- broom::tidy(mod, conf.int = TRUE)
           problem_vars <- b$term[is.na(b$conf.low) | is.na(b$conf.high) | abs(b$estimate) > 10]
@@ -7634,8 +7842,40 @@ lmm_vars <- reactive({
               position = "center", full_width = T) %>%
             kableExtra::scroll_box(width = "100%", height = "100%")
           
+          
+          # >>> INSERTED: Model-fit square (Logistic GLM)
+          fit_box <- div(
+            style = "margin-top: 14px; background:#f5f7fb; border:1px solid #d9e1f2; border-radius:8px; padding:12px;",
+            div(
+              style = "display:flex; align-items:center; gap:8px; margin-bottom:8px;",
+              tags$strong("Model fit & what to do"),
+              tags$span(
+                icon("info-circle", class = "fa-solid"),
+                `data-bs-toggle` = "tooltip",
+                `data-bs-placement` = "right",
+                title = "AIC (Akaike Information Criterion)
+                BIC (Bayesian Information Criterion)
+                logLik (log-likelihood)\n\n
+                Compare models on the same data.\n
+                • Lower AIC and BIC = better fit.
+                • Higher logLik = better fit\n
+                If AIC differs by less than 2, the models fit equally well, so prefer the simpler model.",
+                class = "no-print",
+                style = "color:black; cursor:pointer;"
+              )
+            ),
+            tags$div(
+              style = "display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap:8px; font-size:0.95em;",
+              tags$div(tags$strong("AIC"),         br(), sprintf("%.2f", aic)),
+              tags$div(tags$strong("BIC"),         br(), sprintf("%.2f", bic)),
+              tags$div(tags$strong("logLik"),  br(), sprintf("%.2f", ll_full))
+            )
+          )
+          
+          
           div(style = "margin-top: 15px;",
-              HTML(tbl_log)
+              HTML(tbl_log),
+              fit_box
           )
         })
         
@@ -7713,7 +7953,11 @@ lmm_vars <- reactive({
                 icon("info-circle", class = "fa-solid"),
                 `data-bs-toggle` = "tooltip",
                 `data-bs-placement` = "right",
-                title = "• If binned residuals show poor fit, add relevant predictors, check variable coding, or include interaction terms.\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                title = "Posterior Predictive Check:\n→ If predicted intervals miss the observed points, add predictors or check model specification.\n
+Binned Residuals:\n→ If points fall outside error bounds, add relevant predictors, check variable coding, or include interactions.\n
+Influential Observations:\n→ If points fall outside the contour lines, check for data errors. If valid, test the model with and without them and report major changes.\n
+Collinearity (VIF):\n→ If VIF > 10, remove or combine correlated predictors.\n
+Uniformity of Residuals:\n→ If dots deviate from the diagonal, check model fit, add predictors, or inspect for scaling issues.",
                 class = "no-print",
                 style = "margin-left:8px; color: black; cursor: pointer;"
               )
@@ -8059,6 +8303,7 @@ lmm_vars <- reactive({
 
         output$nb_result <- renderUI({
           df <- nb_model_data()
+          validate(need(!is.null(df), ""))
           main_effects <- input$nb_indep
           interaction_terms <- NULL
 
@@ -8068,9 +8313,15 @@ lmm_vars <- reactive({
 
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$nb_dep, "~", paste(rhs, collapse = " + ")))
+          
+          # Fit model and keep object for metrics/UI
+          mod <- tryCatch(MASS::glm.nb(fml, data = df), error = function(e) NULL)
+          validate(need(!is.null(mod), "Model failed to fit.")) 
+          
+          # Coefficient table
+          b <- broom::tidy(mod, conf.int = TRUE)
 
-        tbl_nb <- MASS::glm.nb(fml, data = df) %>%
-            broom::tidy(conf.int = TRUE) %>%
+        tbl_nb <- b %>% 
             dplyr::mutate(Sig = dplyr::case_when(
               is.na(p.value) ~ "",
               p.value < 0.001 ~ "***",
@@ -8083,8 +8334,49 @@ lmm_vars <- reactive({
             bootstrap_options = c("hover", "condensed", "bordered"),
             position = "center", full_width = T) %>% 
           kableExtra::scroll_box(width = "100%", height = "100%")
+        
+        # ---- FIT METRICS (Negative Binomial) ----
+        aic          <- AIC(mod)                                                 
+        bic          <- BIC(mod)                                                 
+        logLik_val   <- as.numeric(logLik(mod))                                     
+        
+        # Optional McFadden R² (null vs full)
+        ll_null        <- as.numeric(logLik(update(mod, . ~ 1)))                     
+        #R2_McFadden_nb <- 1 - (logLik_val / ll_null)                                  
+        
+        
+        # Fit box UI
+        fit_box <- div(                                                       
+          style = "margin-top: 14px; background:#f5f7fb; border:1px solid #d9e1f2; border-radius:8px; padding:12px;",
+          div(
+            style = "display:flex; align-items:center; gap:8px; margin-bottom:8px;",
+            tags$strong("Model fit & what to do"),
+            tags$span(
+              icon("info-circle", class = "fa-solid"),
+              `data-bs-toggle` = "tooltip",
+              `data-bs-placement` = "right",
+              title = "Akaike Information Criterion (AIC)
+              Bayesian Information Criterion (BIC)
+              Log-likelihood (logLik)\n\n
+              Compare models fitted on the same data:\n
+              • Lower AIC and BIC = better fit.
+              • Higher logLik = better fit.\n
+            If AIC differs by less than 2, the models fit equally well, prefer the simpler model.",
+              class = "no-print",
+              style = "color:black; cursor:pointer;"
+            )
+          ),
+          tags$div(
+            style = "display:grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap:8px; font-size:0.95em;",
+            tags$div(tags$strong("AIC"),        br(), sprintf("%.2f", aic)),
+            tags$div(tags$strong("BIC"),        br(), sprintf("%.2f", bic)),
+            tags$div(tags$strong("logLik"),     br(), sprintf("%.2f", logLik_val))
+            #tags$div(tags$strong("McFadden R²"),br(), sprintf("%.3f", R2_McFadden_nb))
+          )
+        )
         div(style = "margin-top: 15px;",
-            HTML(tbl_nb)
+            HTML(tbl_nb),
+            fit_box
         )
         
         })
@@ -8103,7 +8395,12 @@ lmm_vars <- reactive({
                 icon("info-circle", class = "fa-solid"),
                 `data-bs-toggle` = "tooltip",
                 `data-bs-placement` = "right",
-                title = "• If observed residual variance (green) does not follow predicted variance (blue), add relevant predictors, add interaction terms, or use a zero-inflated negative binomial model (if excess zeros are present).\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                title = "Posterior Predictive Check:\n→ If predicted intervals do not include observed points, the model may be misspecified. Add relevant predictors or interaction terms.\n
+Misspecified Dispersion or Zero-Inflation:\n→ If observed residual variance (green) does not follow predicted variance (blue), add relevant predictors, add interaction terms, or use a zero-inflated negative binomial model (if excess zeros are present).\n
+Homogeneity of Variance:\n→ If the trend is not flat, transform predictors or check for missing variables.\n
+Influential Observations:\n→ If points fall outside the contour lines, check for data errors. If valid, rerun the model with and without them and report major differences.\n
+Collinearity:\n→ If VIF > 10, remove or combine correlated predictors.\n
+Uniformity of Residuals:\n→ If dots deviate from the diagonal, reconsider model fit or add relevant predictors.",
                 class = "no-print",
                 style = "margin-left:8px; color: black; cursor: pointer;"
               )
@@ -8491,14 +8788,17 @@ lmm_vars <- reactive({
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$multi_dep, "~", paste(rhs, collapse = " + ")))
           #mod <- nnet::multinom(fml, data = df, trace = FALSE)
-          res <- tryCatch({                                         ## added: guard model fit
+          
+          # FIT MODEL (guard) -------------------------------------------------------
+          res <- tryCatch({                                         
             mod <- nnet::multinom(fml, data = df, trace = FALSE)
             broom::tidy(mod, conf.int = TRUE)
           }, error = function(e) NULL)
-          
           validate(need(!is.null(res), ""))      ## added: suppress error UI
 
-        tbl_mul <- broom::tidy(mod, conf.int = TRUE) %>%
+          # Tidy table --------------------------------------------------------------
+          b <- broom::tidy(mod, conf.int = TRUE)
+          tbl_mul <- b %>%
             dplyr::mutate(Sig = dplyr::case_when(
               is.na(p.value) ~ "",
               p.value < 0.001 ~ "***",
@@ -8511,8 +8811,66 @@ lmm_vars <- reactive({
             bootstrap_options = c("hover", "condensed", "bordered"),
             position = "center", full_width = T) %>% 
           kableExtra::scroll_box(width = "100%", height = "100%")
+          
+          
+          # METRICS (essential only) -----------------------------------------------
+          aic        <- AIC(mod)                                                    
+          bic        <- BIC(mod)                                                    
+          ll_full    <- as.numeric(logLik(mod))                                    
+          
+          # Multiclass LogLoss (cross-entropy)                                      
+          pmat <- predict(mod, type = "probs")
+          y    <- df[[input$multi_dep]]
+          y    <- factor(y)  # ensure factor
+          # align columns of p with levels of y
+          if (!is.null(colnames(pmat))) {
+            miss <- setdiff(levels(y), colnames(pmat))
+            if (length(miss) > 0) {
+              # add missing columns with tiny probs if baseline omitted
+              add <- matrix(1e-15, nrow = nrow(pmat), ncol = length(miss),
+                            dimnames = list(NULL, miss))
+              pmat <- cbind(pmat, add)
+            }
+            pmat <- pmat[, levels(y), drop = FALSE]
+          }
+          idx <- cbind(seq_len(nrow(df)), as.integer(y))
+          eps <- 1e-15
+          logloss <- -mean(log(pmax(pmat[idx], eps)))                               
+          
+          # FIT BOX UI --------------------------------------------------------------
+          fit_box <- div(                                                           
+            style = "margin-top: 14px; background:#f5f7fb; border:1px solid #d9e1f2; border-radius:8px; padding:12px;",
+            div(
+              style = "display:flex; align-items:center; gap:8px; margin-bottom:8px;",
+              tags$strong("Model fit & what to do"),
+              tags$span(
+                icon("info-circle", class = "fa-solid"),
+                `data-bs-toggle` = "tooltip",
+                `data-bs-placement` = "right",
+                title =
+                  "AIC (Akaike Information Criterion)
+                  BIC (Bayesian Information Criterion)
+                  logLik (log-likelihood)\n\n
+                  Compare models fitted on the same data:\n
+                  • Lower AIC and BIC = better fit.
+                  • Higher logLik = better fit\n
+                If AIC differs by less than 2, the models fit equally well, prefer the simpler model.",
+                class = "no-print",
+                style = "color:black; cursor:pointer;"
+              )
+            ),
+            tags$div(
+              style = "display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap:8px; font-size:0.95em;",
+              tags$div(tags$strong("AIC"),    br(), sprintf("%.2f", aic)),
+              tags$div(tags$strong("BIC"),    br(), sprintf("%.2f", bic)),
+              tags$div(tags$strong("logLik"), br(), sprintf("%.2f", ll_full)),
+            )
+          )
+          
+          
         div(style = "margin-top: 15px;",
-            HTML(tbl_mul)
+            HTML(tbl_mul),
+            fit_box
         )
         })
       })
@@ -8558,7 +8916,9 @@ lmm_vars <- reactive({
                 icon("info-circle", class = "fa-solid"),
                 `data-bs-toggle` = "tooltip",
                 `data-bs-placement` = "right",
-                title = "• If many residual points fall outside the error bounds, add relevant predictors or interaction terms.\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                title = "• If many residual points fall outside the error bounds, add relevant predictors or interaction terms.\n
+                • If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n
+                • If VIF > 10, remove or combine correlated predictors.",
                 class = "no-print",
                 style = "margin-left:8px; color: black; cursor: pointer;"
               )
@@ -8776,8 +9136,12 @@ lmm_vars <- reactive({
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$poiss_dep, "~", paste(rhs, collapse = " + ")))
           
-          tbl_poiss <- glm(fml, data = df, family = poisson) %>%
-            broom::tidy(conf.int = TRUE) %>%
+          # fit model and keep object for metrics/UI
+          mod <- tryCatch(glm(fml, data = df, family = poisson), error = function(e) NULL)  
+          validate(need(!is.null(mod), "Model failed to fit.")) 
+          
+          
+          tbl_poiss <- broom::tidy(mod, conf.int = TRUE) %>%
             dplyr::mutate(Sig = dplyr::case_when(
               is.na(p.value) ~ "",
               p.value < 0.001 ~ "***",
@@ -8791,8 +9155,48 @@ lmm_vars <- reactive({
               position = "center", full_width = T
             ) %>%
             kableExtra::scroll_box(width = "100%", height = "100%")
+          
+          # INSERTED: essential metrics for comparing 2 Poisson models
+          aic        <- AIC(mod)                                  # INSERTED
+          bic        <- BIC(mod)                                  # INSERTED
+          ll_full    <- as.numeric(logLik(mod))                   # INSERTED
+          dispersion <- mod$deviance / mod$df.residual            # INSERTED
+          
+          # INSERTED: compact fit box (same template as your other models)
+          fit_box <- div(
+            style = "margin-top: 14px; background:#f5f7fb; border:1px solid #d9e1f2; border-radius:8px; padding:12px;",
+            div(
+              style = "display:flex; align-items:center; gap:8px; margin-bottom:8px;",
+              tags$strong("Model fit & what to do"),
+              tags$span(
+                icon("info-circle", class = "fa-solid"),
+                `data-bs-toggle` = "tooltip",
+                `data-bs-placement` = "right",
+                title ="AIC (Akaike Information Criterion)
+                BIC (Bayesian Information Criterion)
+                logLik (log-likelihood)\n\n
+                Compare models fitted on the same data:\n
+                • Lower AIC and BIC = better fit.
+                • Higher logLik = better fit.
+                • Dispersion close to 1 is expected for Poisson; large values suggest overdispersion.\n
+                If AIC differs by < 2, the models fit equally well, prefer the simpler model.",
+                class = "no-print",
+                style = "color:black; cursor:pointer;"
+              )
+            ),
+            tags$div(
+              style = "display:grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap:8px; font-size:0.95em;",
+              tags$div(tags$strong("AIC"),        br(), sprintf("%.2f", aic)),
+              tags$div(tags$strong("BIC"),        br(), sprintf("%.2f", bic)),
+              tags$div(tags$strong("logLik"),     br(), sprintf("%.2f", ll_full)),
+              tags$div(tags$strong("Dispersion"), br(), sprintf("%.2f", dispersion))
+            )
+          )
+          
+          
           div(style = "margin-top: 15px;",
-              HTML(tbl_poiss)
+              HTML(tbl_poiss),
+              fit_box
           )
         })
       })
@@ -8920,7 +9324,12 @@ lmm_vars <- reactive({
                 icon("info-circle", class = "fa-solid"),
                 `data-bs-toggle` = "tooltip",
                 `data-bs-placement` = "right",
-                title = "• If observed residual variance (green) does not follow predicted variance (blue), use a negative binomial or zero-inflated model if needed, as this might indicate overdispersion.\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                title = "Posterior Predictive Check:\n→ If predicted intervals do not include observed points, the model may be misspecified. Add predictors or consider a different count model.\n
+Misspecified Dispersion or Zero-Inflation:\n→ If the green line is much higher, there is overdispersion. Consider a negative binomial, or zero-inflated model (if needed).\n
+Homogeneity of Variance:\n→ If the trend is not flat, transform predictors or use a negative binomial model.\n
+Influential Observations:\n→ If points fall outside the contour lines, check for data errors. If valid, rerun the model with and without them and report major differences.\n
+Collinearity (VIF):\n→ If VIF > 10, remove or combine correlated predictors.\n
+Uniformity of Residuals:\n→ If dots deviate from the diagonal, check model fit or consider a negative binomial model.",
                 class = "no-print",
                 style = "margin-left:8px; color: black; cursor: pointer;"
               )
@@ -8983,6 +9392,8 @@ lmm_vars <- reactive({
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$poiss_dep, "~", paste(rhs, collapse = " + ")))
           mod <- glm(fml, data = df, family = poisson)
+          
+          
           
           b <- broom::tidy(mod, conf.int = TRUE) %>%
             dplyr::filter(!is.na(conf.low), !is.na(conf.high), !is.na(estimate)) %>%
@@ -9183,13 +9594,20 @@ lmm_vars <- reactive({
           
           rhs <- c(main_effects, interaction_terms)
           fml <- as.formula(paste(input$zinb_dep, "~", paste(rhs, collapse = " + ")))
-          ziform <- as.formula(paste("~", paste(rhs, collapse = " + ")))
+          #ziform <- as.formula(paste("~", paste(rhs, collapse = " + ")))
           
-          mod <- glmmTMB::glmmTMB(
-            formula = fml,
-            ziformula = ~ 1,
-            family = glmmTMB::nbinom2,
-            data = df)
+          
+          mod <- tryCatch(                                                          
+            glmmTMB::glmmTMB(
+              formula    = fml,
+              ziformula  = ~ 1,
+              family     = glmmTMB::nbinom2,
+              data       = df
+            ),
+            error = function(e) NULL
+          )                                                                        
+          validate(need(!is.null(mod), "Model failed to fit.")) 
+          
           
           tbl_zinb <- broom.mixed::tidy(mod, conf.int = TRUE) %>%
             dplyr::mutate(Sig = dplyr::case_when(
@@ -9208,8 +9626,43 @@ lmm_vars <- reactive({
             ) %>%
             kableExtra::scroll_box(width = "100%", height = "100%")
           
+          # METRICS FOR MODEL COMPARISON (minimal) -----------------------------------
+          aic     <- AIC(mod)                                                        
+          bic     <- BIC(mod)                                                       
+          ll_full <- as.numeric(logLik(mod))                                        
+          
+          # Compact fit box (same template style) ------------------------------------
+          fit_box <- div(                                                           
+            style = "margin-top: 14px; background:#f5f7fb; border:1px solid #d9e1f2; border-radius:8px; padding:12px;",
+            div(
+              style = "display:flex; align-items:center; gap:8px; margin-bottom:8px;",
+              tags$strong("Model fit & what to do"),
+              tags$span(
+                icon("info-circle", class = "fa-solid"),
+                `data-bs-toggle` = "tooltip",
+                `data-bs-placement` = "right",
+                title ="AIC (Akaike Information Criterion)
+                BIC (Bayesian Information Criterion)
+                logLik (log-likelihood)\n\n
+                Compare models fitted on the same data:
+                • Lower AIC and BIC = better fit.
+                • Higher logLik = better fit.\n
+                If AIC differs by < 2, the models fit equally well, prefer the simpler model.",
+                class = "no-print",
+                style = "color:black; cursor:pointer;"
+              )
+            ),
+            tags$div(
+              style = "display:grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap:8px; font-size:0.95em;",
+              tags$div(tags$strong("AIC"),    br(), sprintf("%.2f", aic)),
+              tags$div(tags$strong("BIC"),    br(), sprintf("%.2f", bic)),
+              tags$div(tags$strong("logLik"), br(), sprintf("%.2f", ll_full))
+            )
+          )
+          
           div(style = "margin-top: 15px;",
-              HTML(tbl_zinb)
+              HTML(tbl_zinb),
+              fit_box
           )
         })
       })
@@ -9227,7 +9680,13 @@ lmm_vars <- reactive({
                 icon("info-circle", class = "fa-solid"),
                 `data-bs-toggle` = "tooltip",
                 `data-bs-placement` = "right",
-                title = "• If observed residual variance (green) does not follow predicted variance (blue), consider adding relevant predictors, or interaction terms.\n• If the residual Q-Q plot deviates strongly from the diagonal, reconsider model fit or add relevant predictors.\n• If VIF > 10, remove or combine correlated predictors.",
+                title = "Posterior Predictive Check:\n→ If predicted intervals do not include observed points, the model may be misspecified. Add relevant predictors or interaction terms.\n
+Misspecified Dispersion or Zero-Inflation:\n→ If observed residual variance (green) does not follow predicted variance (blue), add predictors or interaction terms, or include predictors that explain extra zeros.\n
+Homogeneity of Variance:\n→ If the trend is not flat, transform predictors or check for missing variables.\n
+Influential Observations:\n→ If points fall outside the contour lines, check for data errors. If valid, rerun the model with and without them and report major differences.\n
+Collinearity:\n→ If VIF > 10, remove or combine correlated predictors.\n
+Uniformity of Residuals:\n→ If dots deviate from the diagonal, reconsider model fit or add relevant predictors."
+                ,
                 class = "no-print",
                 style = "margin-left:8px; color: black; cursor: pointer;"
               )
