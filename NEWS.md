@@ -1,3 +1,11 @@
+# AssumpSure 1.1.3
+
+## Bugs fixes
+- Fixed detection of numeric-coded grouping variables for random effects (e.g., participant IDs coded as 1, 2, 3) in LMM input.
+- Added a new helper function `safe_run()` to handle computation interruptions gracefully in Shiny, preventing errors when users stop a process manually.
+
+
+
 # AssumpSure 1.1.2
 
 ## Bug fixes

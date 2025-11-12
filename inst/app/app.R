@@ -851,18 +851,29 @@ function corScreenshotWithoutScatterBtn() {
          style = "color: #2c3e50; margin-top: 30px; font-weight: 600;"),
 
       p("To understand the expected format and test the app features, download and explore the sample dataset:"),
-
+      
       div(
         style = "text-align: center; margin: 20px 0; padding: 20px; border-radius: 12px; background-color: #f0f7fb; border: 1px solid #ddd;",
-
         icon("file-csv", class = "fa-2x", style = "color: #3A9BB2; margin-bottom: 10px;"),
         h5("Sample Data for Testing", style = "margin-bottom: 10px; font-weight: 600;"),
-        a(href = "https://github.com/Ahmedbargheet/AssumpSure/tree/main/inst/extdata/infants.csv", # correct
-          "Download Sample Data (CSV)",
-          target = "_blank",
-          style = "font-size: 16px; text-decoration: none; color: #3A9BB2; font-weight: 500;"
+        downloadButton(
+          outputId = "download_sample_data",
+          label = "Download Sample Data (CSV)",
+          class = "btn btn-primary"
         )
       ),
+
+      # div(
+      #   style = "text-align: center; margin: 20px 0; padding: 20px; border-radius: 12px; background-color: #f0f7fb; border: 1px solid #ddd;",
+      # 
+      #   icon("file-csv", class = "fa-2x", style = "color: #3A9BB2; margin-bottom: 10px;"),
+      #   h5("Sample Data for Testing", style = "margin-bottom: 10px; font-weight: 600;"),
+      #   a(href = "https://github.com/Ahmedbargheet/AssumpSure/tree/main/inst/extdata/infants.csv", # correct
+      #     "Download Sample Data (CSV)",
+      #     target = "_blank",
+      #     style = "font-size: 16px; text-decoration: none; color: #3A9BB2; font-weight: 500;"
+      #   )
+      # ),
 
       p("The sample file includes an example of long-format data with timepoints, groups, and numeric variables.",
         style = "font-size: 0.9em; color: #666; text-align: center;"),
@@ -1003,6 +1014,27 @@ function corScreenshotWithoutScatterBtn() {
   ),
   
   hr(),
+  
+  # Citation Info
+  h4(icon("book", style = "margin-right: 8px; color: #E3A599;"), "Citation",
+     style = "color: #2c3e50; font-weight: 600;"),
+  
+  p(
+    HTML('If you use <strong>AssumpSure</strong> in your research, please cite:'),
+    style = "color: #444; text-align: left; margin-top: 10px;"
+  ),
+  
+  p(
+    HTML('<strong>Bargheet, A.</strong> (2025). 
+        AssumpSure: a user-friendly R Shiny package for automated validation of statistical assumptions and appropriate test selection. 
+        <i>Journal of Open Source Software, 10</i>(115), 9286. 
+        <a href="https://doi.org/10.21105/joss.09286" target="_blank">https://doi.org/10.21105/joss.09286</a>'),
+    style = "color: #444; text-align: left; margin-top: 10px;"
+  ),
+  
+  hr(),
+  
+  
 
       # Contact Info
   h4(icon("envelope", style = "margin-right: 8px; color: #E3A599;"), "Need Help?",
@@ -1038,6 +1070,39 @@ function corScreenshotWithoutScatterBtn() {
 
 # ----- SERVER -----
 server <- function(input, output, session) {
+  
+
+# Download sample data ----------------------------------------------------
+  output$download_sample_data <- downloadHandler(
+    filename    = function() paste0("infants_", Sys.Date(), ".csv"),
+    contentType = "text/csv",
+    content     = function(file) {
+      src <- system.file("extdata", "infants.csv", package = "AssumpSure")
+      if (!nzchar(src) || !file.exists(src)) src <- "www/infants.csv"
+      if (!file.exists(src)) stop("Sample data not found.")
+      file.copy(src, file, overwrite = TRUE)
+    }
+  )
+  
+
+# Session handling and safe interruption ----------------------------------
+  # session$onSessionEnded(function() {
+  #   stopApp()
+  # })
+  
+  safe_run <- function(expr) {
+    tryCatch(
+      force(expr),
+      interrupt = function(e) { invisible(NULL) },          # user hit Esc/Stop
+      error = function(e) {
+        if (grepl("interrupted|type \\(29\\)", conditionMessage(e))) return(invisible(NULL))
+        showNotification("Computation aborted.", type = "message", duration = 5)
+        invisible(NULL)
+      }
+    )
+  }
+  
+  
 
   # --- Data Loader ---
   data <- reactive({
@@ -1953,7 +2018,7 @@ output$levene_text <- renderUI({
   histogram_plot_independent <- function(df) {
     ggplot2::ggplot(df, aes(x = value, fill = group, colour = group)) +
       geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", alpha = 0.7) +
-      geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+      geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
       theme_test() +
       scale_color_brewer(palette = "Set2") +
       scale_fill_brewer(palette = "Set2") +
@@ -1981,7 +2046,7 @@ output$levene_text <- renderUI({
     ggplot2::ggplot(data.frame(diff = diff), aes(x = diff)) +
       geom_histogram(aes(y = after_stat(density)), bins = 30, color = "black", 
                      fill = "#66C2A5", alpha = 0.7) +
-      geom_density(color = "#b2182b", fill = "#66C2A5", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+      geom_density(color = "#b2182b", fill = "#66C2A5", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
       theme_test() +
       scale_color_brewer(palette = "Set2") + 
       scale_fill_brewer(palette = "Set2") +
@@ -2013,7 +2078,7 @@ output$levene_text <- renderUI({
     
     ggplot2::ggplot(df, ggplot2::aes(x = value, fill = group, colour = group)) +
       ggplot2::geom_histogram(ggplot2::aes(y = after_stat(density)), bins = 30, color = "black", alpha = 0.7) +
-      ggplot2::geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+      ggplot2::geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
       ggplot2::theme_test() +
       pal_color + pal_fill +
       ggplot2::facet_wrap(~group) +
@@ -2440,20 +2505,20 @@ output$levene_text <- renderUI({
   # --- Run Statistical Test ---
 
 ## Independent t-test
-  run_independent_test <- function(df) {
-    tryCatch({
-      rstatix::t_test(df, value ~ group, paired = FALSE, detailed = TRUE) %>% 
-        dplyr::mutate(method = "Independent t-test")
-    }, error = function(e) data.frame(p = NA))
-  }
-
-## Dependent t-test
-  run_dependent_test <- function(df) {
-    tryCatch({
-      rstatix::t_test(df, value ~ group, paired = TRUE, detailed = TRUE) %>% 
-        dplyr::mutate(method = "Paired t-test")
-    }, error = function(e) data.frame(p = NA))
-  }
+#   run_independent_test <- function(df) {
+#     tryCatch({
+#       rstatix::t_test(df, value ~ group, paired = FALSE, detailed = TRUE) %>% 
+#         dplyr::mutate(method = "Independent t-test")
+#     }, error = function(e) data.frame(p = NA))
+#   }
+# 
+# ## Dependent t-test
+#   run_dependent_test <- function(df) {
+#     tryCatch({
+#       rstatix::t_test(df, value ~ group, paired = TRUE, detailed = TRUE) %>% 
+#         dplyr::mutate(method = "Paired t-test")
+#     }, error = function(e) data.frame(p = NA))
+#   }
 
 # # Mann-Whitney U test
 # run_mannwhitney_test <- function(df) {
@@ -2481,46 +2546,46 @@ output$levene_text <- renderUI({
  
    
 
-  ## Mann-Whitney U test
-  run_mannwhitney_test <- function(df) {
-    ngroups <- nlevels(df$group)
-    if (ngroups != 2) return(data.frame(p = NA))
-    
-    tryCatch({
-      rstatix::wilcox_test(df, value ~ group, paired = FALSE, detailed = TRUE) %>%
-        dplyr::mutate(method = "Mann–Whitney")
-    }, error = function(e) data.frame(p = NA))
-  }
-  
-  
-## Wilcoxon signed-rank test
-run_wilcoxon_signed_test <- function(df) {
-  ngroups <- nlevels(df$group)
-  if (ngroups != 2) return(data.frame(p = NA))
-
-  group_sizes <- table(df$group)
-  if (length(unique(group_sizes)) != 1) return(data.frame(p = NA))
-
-  tryCatch({
-    rstatix::wilcox_test(df, value ~ group, paired = TRUE, detailed = TRUE) %>% 
-      dplyr::mutate(method = "Mann-Whitney")
-  }, error = function(e) data.frame(p = NA))
-}
-  
-
-## One-way ANOVA
-  run_anova_test <- function(df) {
-    tryCatch({
-      rstatix::anova_test(df, value ~ group, white.adjust = T)
-    }, error = function(e) data.frame(p = NA))
-  }
-
-## Kruskal–Wallis Test
-  run_kruskal_test <- function(df) {
-    tryCatch({
-      rstatix::kruskal_test(df, value ~ group)
-    }, error = function(e) data.frame(p = NA))
-  }
+#   ## Mann-Whitney U test
+#   run_mannwhitney_test <- function(df) {
+#     ngroups <- nlevels(df$group)
+#     if (ngroups != 2) return(data.frame(p = NA))
+#     
+#     tryCatch({
+#       rstatix::wilcox_test(df, value ~ group, paired = FALSE, detailed = TRUE) %>%
+#         dplyr::mutate(method = "Mann–Whitney")
+#     }, error = function(e) data.frame(p = NA))
+#   }
+#   
+#   
+# ## Wilcoxon signed-rank test
+# run_wilcoxon_signed_test <- function(df) {
+#   ngroups <- nlevels(df$group)
+#   if (ngroups != 2) return(data.frame(p = NA))
+# 
+#   group_sizes <- table(df$group)
+#   if (length(unique(group_sizes)) != 1) return(data.frame(p = NA))
+# 
+#   tryCatch({
+#     rstatix::wilcox_test(df, value ~ group, paired = TRUE, detailed = TRUE) %>% 
+#       dplyr::mutate(method = "Mann-Whitney")
+#   }, error = function(e) data.frame(p = NA))
+# }
+#   
+# 
+# ## One-way ANOVA
+#   run_anova_test <- function(df) {
+#     tryCatch({
+#       rstatix::anova_test(df, value ~ group, white.adjust = T)
+#     }, error = function(e) data.frame(p = NA))
+#   }
+# 
+# ## Kruskal–Wallis Test
+#   run_kruskal_test <- function(df) {
+#     tryCatch({
+#       rstatix::kruskal_test(df, value ~ group)
+#     }, error = function(e) data.frame(p = NA))
+#   }
   
   ## Welch's t-test test
   run_welch_test <- function(df) {
@@ -4084,31 +4149,31 @@ output$boxplot_ui <- renderUI({
 
 
 
-    stat_square_chisq <- function(df) {
-      res <- run_chisq_test(df)
-      pval <- res$p[1]
-      if (is.na(pval)) return(NULL)
-      div(
-        style = paste0(
-          "background-color: ", if (pval < 0.05) "green" else "#B20D00",
-          "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"
-        ),
-        strong(if (pval < 0.05) "Statistically Significant Difference" else "No Statistically Significant Difference")
-      )
-    }
+    # stat_square_chisq <- function(df) {
+    #   res <- run_chisq_test(df)
+    #   pval <- res$p[1]
+    #   if (is.na(pval)) return(NULL)
+    #   div(
+    #     style = paste0(
+    #       "background-color: ", if (pval < 0.05) "green" else "#B20D00",
+    #       "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"
+    #     ),
+    #     strong(if (pval < 0.05) "Statistically Significant Difference" else "No Statistically Significant Difference")
+    #   )
+    # }
 
-    stat_square_fisher <- function(df) {
-      res <- run_fisher_test(df)
-      pval <- res$p[1]
-      if (is.na(pval)) return(NULL)
-      div(
-        style = paste0(
-          "background-color: ", if (pval < 0.05) "green" else "#B20D00",
-          "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"
-        ),
-        strong(if (pval < 0.05) "Statistically Significant Difference" else "No Statistically Significant Difference")
-      )
-    }
+    # stat_square_fisher <- function(df) {
+    #   res <- run_fisher_test(df)
+    #   pval <- res$p[1]
+    #   if (is.na(pval)) return(NULL)
+    #   div(
+    #     style = paste0(
+    #       "background-color: ", if (pval < 0.05) "green" else "#B20D00",
+    #       "; color: white; padding: 10px; border-radius: 5px; margin-top: 10px;"
+    #     ),
+    #     strong(if (pval < 0.05) "Statistically Significant Difference" else "No Statistically Significant Difference")
+    #   )
+    # }
 
 
     # Handle post hoc
@@ -4483,13 +4548,13 @@ output$boxplot_ui <- renderUI({
   last_feature_count <- reactiveVal(NULL)
   
   # --- PATCH 0:  ---
-  is_singular_matrix <- function(S, tol = .Machine$double.eps^0.5) {
-    if (!is.matrix(S)) return(TRUE)
-    if (any(!is.finite(S))) return(TRUE)
-    r <- qr(S)$rank
-    p <- ncol(S)
-    (r < p) || any(is.na(S)) || (min(abs(eigen(S, symmetric = TRUE, only.values = TRUE)$values)) < tol)
-  }
+  # is_singular_matrix <- function(S, tol = .Machine$double.eps^0.5) {
+  #   if (!is.matrix(S)) return(TRUE)
+  #   if (any(!is.finite(S))) return(TRUE)
+  #   r <- qr(S)$rank
+  #   p <- ncol(S)
+  #   (r < p) || any(is.na(S)) || (min(abs(eigen(S, symmetric = TRUE, only.values = TRUE)$values)) < tol)
+  # }
   
   
 
@@ -4509,9 +4574,9 @@ output$boxplot_ui <- renderUI({
 
 # Data Loading & Numeric Feature Detection
 
-  safe_shapiro_pval <- function(x) {
-    !is.null(x) && !is.null(x$p.value) && is.numeric(x$p.value) && !is.na(x$p.value)
-  }
+  # safe_shapiro_pval <- function(x) {
+  #   !is.null(x) && !is.null(x$p.value) && is.numeric(x$p.value) && !is.na(x$p.value)
+  # }
 
   # Automatically switch to “Test Results” tab when Run is clicked
   observeEvent(input$cor_run, {
@@ -5289,19 +5354,19 @@ output$boxplot_ui <- renderUI({
   })
 
 
-  make_scatter_plot <- function(v1, v2, var1_name, var2_name) {
-    ggplot2::ggplot(data.frame(x = v1, y = v2), aes(x, y)) +
-      geom_point(size = 2, color = "#4B96CB") +
-      geom_smooth(method = "lm", se = FALSE, color = "#F57B13", linetype = 5, linewidth = 1) +
-      theme_bw() +
-      labs(title = "Scatterplot with Regression Line",
-           x = var1_name, y = var2_name) + 
-      theme(axis.text.x = element_text(size = 12, colour = "black")) + 
-      theme(axis.title.x = element_text(size = 14, colour = "black", face = "bold")) + 
-      theme(axis.text.y = element_text(size = 12, colour = "black")) + 
-      theme(axis.title.y = element_text(size = 14, colour = "black", face = "bold")) + 
-      theme(plot.title = element_text(size = 17))
-  }
+  # make_scatter_plot <- function(v1, v2, var1_name, var2_name) {
+  #   ggplot2::ggplot(data.frame(x = v1, y = v2), aes(x, y)) +
+  #     geom_point(size = 2, color = "#4B96CB") +
+  #     geom_smooth(method = "lm", se = FALSE, color = "#F57B13", linetype = 5, linewidth = 1) +
+  #     theme_bw() +
+  #     labs(title = "Scatterplot with Regression Line",
+  #          x = var1_name, y = var2_name) + 
+  #     theme(axis.text.x = element_text(size = 12, colour = "black")) + 
+  #     theme(axis.title.x = element_text(size = 14, colour = "black", face = "bold")) + 
+  #     theme(axis.text.y = element_text(size = 12, colour = "black")) + 
+  #     theme(axis.title.y = element_text(size = 14, colour = "black", face = "bold")) + 
+  #     theme(plot.title = element_text(size = 17))
+  # }
 
  # Download the Scatter plot
   output$cor_download_plot <- downloadHandler(
@@ -6450,7 +6515,7 @@ Normality of Residuals:\n→ If points deviate strongly from the line (especiall
         df <- lm_data()
         ggplot2::ggplot(df, aes(x = .data[[input$lm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
           theme(axis.title.x = element_text(colour = "black", face = "bold", size = 15)) + 
           theme(axis.title.y = element_text(colour = "black", face = "bold", size = 15)) + 
@@ -6491,7 +6556,7 @@ Normality of Residuals:\n→ If points deviate strongly from the line (especiall
         df <- lm_transformed_data()
         ggplot2::ggplot(df, aes(x = .data[[input$lm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() +
           theme(axis.title.x = element_text(colour = "black", face = "bold", size = 15)) + 
           theme(axis.title.y = element_text(colour = "black", face = "bold", size = 15)) + 
@@ -6544,7 +6609,7 @@ Normality of Residuals:\n→ If points deviate strongly from the line (especiall
         dep_var <- input$lm_dep
         p <- ggplot2::ggplot(df, aes(x = .data[[dep_var]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
           labs(title = "Before Transformation", x = dep_var, y = "Density") +
           theme(
@@ -6601,7 +6666,7 @@ Normality of Residuals:\n→ If points deviate strongly from the line (especiall
         df <- lm_transformed_data()
         p <- ggplot2::ggplot(df, aes(x = .data[[input$lm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
           labs(title = "After Transformation", x = paste0(input$lm_dep, " (transformed)"), y = "Density") +
           theme(
@@ -6782,7 +6847,10 @@ lmm_vars <- reactive({
     observeEvent(list(input$lmm_file, input$lmm_indep), {
       req(input$lmm_file)
       df <- read.csv(input$lmm_file$datapath)
-      fact_vars <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
+      #fact_vars <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
+      fact_vars <- names(df)[sapply(df, function(x)
+        is.factor(x) || is.character(x) || (is.numeric(x) && any(duplicated(x)))
+      )]
       indep <- input$lmm_indep
       
       # Exclude independent variables from random effect choices
@@ -6807,7 +6875,10 @@ lmm_vars <- reactive({
     output$lmm_re_ui <- renderUI({
       req(input$lmm_file)
       df <- read.csv(input$lmm_file$datapath)
-      fact_vars <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
+      #fact_vars <- names(df)[sapply(df, function(x) is.factor(x) || is.character(x))]
+      fact_vars <- names(df)[sapply(df, function(x)
+        is.factor(x) || is.character(x) || (is.numeric(x) && any(duplicated(x)))
+      )]
       indep <- input$lmm_indep
       choices <- setdiff(fact_vars, indep)
       
@@ -6955,7 +7026,7 @@ lmm_vars <- reactive({
         df <- lmm_data()
         ggplot2::ggplot(df, aes(x = .data[[input$lmm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
           theme(axis.title.x = element_text(colour = "black", face = "bold", size = 15)) + 
           theme(axis.title.y = element_text(colour = "black", face = "bold", size = 15)) + 
@@ -6996,7 +7067,7 @@ lmm_vars <- reactive({
         plot_df <- data.frame(val = trans_x)
         ggplot2::ggplot(plot_df, aes(val)) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
           theme(axis.title.x = element_text(colour = "black", face = "bold", size = 15)) + 
           theme(axis.title.y = element_text(colour = "black", face = "bold", size = 15)) + 
@@ -7015,7 +7086,7 @@ lmm_vars <- reactive({
         df <- lmm_data()
         p <- ggplot2::ggplot(df, aes(x = .data[[input$lmm_dep]])) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#4db6ac", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7, show.legend = FALSE) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7, show.legend = FALSE) +
           theme_test() + 
           labs(title = "Before Transformation", x = input$lmm_dep, y = "Density") +
           theme(
@@ -7044,7 +7115,7 @@ lmm_vars <- reactive({
         plot_df <- data.frame(val = trans_x)
         p <- ggplot2::ggplot(plot_df, aes(val)) +
           geom_histogram(aes(y = after_stat(density)), color = "black", fill = "#ffb74d", bins = 30) +
-          geom_density(color = "#b2182b", size = 1.2, alpha = 0.7) +
+          geom_density(color = "#b2182b", linewidth = 1.2, alpha = 0.7) +
           theme_test() +
           labs(title = "After Transformation", x = paste0(input$lmm_dep, " (transformed)"), y = "Density") +
           theme(
