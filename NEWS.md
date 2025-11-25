@@ -1,3 +1,13 @@
+# AssumpSure 1.1.4
+
+## Bugs fixes
+- Fixed an error in the ANOVA normality check where Shapiro–Wilk failed on groups with zero variance.
+- Added a user-facing message explaining that normality cannot be tested when a group has identical values.
+
+## New features
+- Added concise inline messages beneath continuous-variable dropdowns in the t-test/ANOVA and LM/LMM sections to clarify that only continuous variables are shown.
+
+
 # AssumpSure 1.1.3
 
 ## Bugs fixes
